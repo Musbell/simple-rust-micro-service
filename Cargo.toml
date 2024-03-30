@@ -1,0 +1,28 @@
+[package]
+name = "blog"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [
+    "services/posts",
+    "services/query",
+    "services/moderation",
+    "services/event-bus",
+    "services/comments",
+    "libs/request",
+    "shared/types",
+]
+
+[workspace.dependencies]
+request = { path = "libs/request" }
+types = { path = "shared/types" }
+
+[lib]
+name = "request"
+path = "libs/request/src/lib.rs"
+
+[dependencies]
+reqwest = "0.12.2"
+serde = { version = "1.0.197", features = ["derive"]   }
+uuid = { version = "1.8.0", features = ["v4"] }
