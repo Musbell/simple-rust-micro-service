@@ -2,8 +2,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
-use types::{Event, Post, Comment, Data};
-use uuid::Uuid;
+use types::{Comment, Data, Event, Post};
 
 struct EventData {
     events: Mutex<Vec<Event>>,
@@ -70,18 +69,19 @@ async fn handle_event(
     event_list.push(event.clone());
 
     match event.data {
-        Data::PostData(post) => {
-            publish_post_event_fn("http://localhost:4000/events", &post)
-                .await
-                .expect("Error publishing POST event");
-        }
-        Data::CommentData(comment) => {
-            publish_comment_event_fn("http://localhost:4001/events", &comment)
-                .await
-                .expect("Error publishing COMMENT event");
+    Data::PostData(post) => {
+        match publish_post_event_fn("http://localhost:4000/events", &post).await {
+            Ok(_) => (),
+            Err(err) => log::error!("Error publishing POST event: {}", err),
         }
     }
-
+    Data::CommentData(comment) => {
+        match publish_comment_event_fn("http://localhost:4001/events", &comment).await {
+            Ok(_) => (),
+            Err(err) => log::error!("Error publishing COMMENT event: {}", err),
+        }
+    }
+}
     HttpResponse::Ok().body(format!("Event received: {:?}", event_list))
 }
 

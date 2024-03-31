@@ -14,3 +14,4 @@ serde_json = "1.0.114"
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 request = { workspace = true }
 types = { workspace = true }
+log = "0.4.21"
