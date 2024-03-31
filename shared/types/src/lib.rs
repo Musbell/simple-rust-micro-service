@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Data {
+    PostData(Post),
+    CommentData(Comment),
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Post {
     pub id: Option<Uuid>,
     pub title: String,
@@ -9,20 +14,25 @@ pub struct Post {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Event {
     pub event_type: String,
-    pub data: Post,
+    pub data: Data,
 }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-enum CommentStatus {
+pub enum CommentStatus {
     Pending,
     Approved,
     Rejected,
 }
 
+impl Default for CommentStatus {
+    fn default() -> Self {
+        CommentStatus::Pending
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Comment {
-    pub id: Uuid,
-    pub post_id: Uuid,
+    pub id: Option<Uuid>,
+    pub post_id: Option<Uuid>,
     pub content: String,
-    pub status: CommentStatus,
+    pub status: Option<CommentStatus>,
 }

@@ -17,9 +17,11 @@ fn id_generator() -> Uuid {
 async fn publish_event_fn(url: &str, post: &Post) -> Result<(), String> {
     let post_json = json!({
         "event_type": "PostCreated",
-        "data": {
-            "id": post.id,
-            "title": post.title,
+         "data": {
+           "PostData": {
+                 "id": post.id,
+                "title": post.title,
+            }
         },
     });
 
@@ -41,7 +43,7 @@ async fn create_post(data: web::Data<PostData>, post: web::Json<Post>) -> impl R
     new_post.id = Some(id);
     posts.push(new_post.clone());
     if let Err(err) = publish_event_fn("http://localhost:4005/events", &new_post).await {
-        log::error!("Failed to publish event: {}", err);
+        log::error!("Failed to publish POST event: {}", err);
         return HttpResponse::InternalServerError().finish();
     }
     HttpResponse::Ok().body(format!("Post created: {:?}", new_post))
@@ -49,7 +51,7 @@ async fn create_post(data: web::Data<PostData>, post: web::Json<Post>) -> impl R
 
 async fn events(req_body: web::Json<Event>) -> impl Responder {
     println!("Received Event: {:?}", req_body.event_type);
-    HttpResponse::Ok().body("Received Event")
+    HttpResponse::Ok().body("Received POST Event")
 }
 
 #[actix_web::main]
