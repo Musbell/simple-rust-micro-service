@@ -5,6 +5,7 @@ use uuid::Uuid;
 pub enum Data {
     PostData(Post),
     CommentData(Comment),
+    ModerationData(Comment),
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Post {

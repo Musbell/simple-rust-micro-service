@@ -1,10 +1,11 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 // use serde::{Deserialize, Serialize};
 use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
 use types::{Event, Post};
 use uuid::Uuid;
+use log::{info, error};
 
 struct PostData {
     posts: Mutex<Vec<Post>>,
@@ -43,14 +44,14 @@ async fn create_post(data: web::Data<PostData>, post: web::Json<Post>) -> impl R
     new_post.id = Some(id);
     posts.push(new_post.clone());
     if let Err(err) = publish_event_fn("http://localhost:4005/events", &new_post).await {
-        log::error!("Failed to publish POST event: {}", err);
+        error!("Failed to publish POST event: {}", err);
         return HttpResponse::InternalServerError().finish();
     }
     HttpResponse::Ok().body(format!("Post created: {:?}", new_post))
 }
 
 async fn events(req_body: web::Json<Event>) -> impl Responder {
-    println!("Received Event: {:?}", req_body.event_type);
+    info!("Received Event: {:?}", req_body.event_type);
     HttpResponse::Ok().body("Received POST Event")
 }
 
@@ -58,6 +59,8 @@ async fn events(req_body: web::Json<Event>) -> impl Responder {
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=debug");
     env_logger::init();
+
+    info!("starting up");
 
     let posts = web::Data::new(PostData {
         posts: Mutex::new(vec![]),

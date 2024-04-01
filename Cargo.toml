@@ -23,6 +23,8 @@ name = "request"
 path = "libs/request/src/lib.rs"
 
 [dependencies]
+env_logger = "0.11.3"
+log = "0.4.21"
 reqwest = "0.12.2"
 serde = { version = "1.0.197", features = ["derive"]   }
 uuid = { version = "1.8.0", features = ["v4"] }

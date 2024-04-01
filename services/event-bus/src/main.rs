@@ -3,6 +3,7 @@ use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
 use types::{Comment, Data, Event, Post};
+use log::{info, error};
 
 struct EventData {
     events: Mutex<Vec<Event>>,
@@ -69,19 +70,29 @@ async fn handle_event(
     event_list.push(event.clone());
 
     match event.data {
-    Data::PostData(post) => {
-        match publish_post_event_fn("http://localhost:4000/events", &post).await {
-            Ok(_) => (),
-            Err(err) => log::error!("Error publishing POST event: {}", err),
+        Data::PostData(post) => {
+            match publish_post_event_fn("http://localhost:4000/events", &post).await {
+                Ok(_) => log::info!("Published POST event"),
+                Err(err) => log::error!("Error publishing POST event: {}", err),
+            }
+        }
+        Data::CommentData(comment) => {
+            match publish_comment_event_fn("http://localhost:4001/events", &comment).await {
+                Ok(_) => log::info!("Published COMMENT event"),
+                Err(err) => log::error!("Error publishing COMMENT event: {}", err),
+            }
+            match publish_comment_event_fn("http://localhost:4002/events", &comment).await {
+                Ok(_) => log::info!("Published MODERATION event"),
+                Err(err) => log::error!("Error publishing MODERATION event: {}", err),
+            }
+        }
+        Data::ModerationData(comment) => {
+            match publish_comment_event_fn("http://localhost:4002/events", &comment).await {
+                Ok(_) => log::info!("Published MODERATION event"),
+                Err(err) => log::error!("Error publishing MODERATION event: {}", err),
+            }
         }
     }
-    Data::CommentData(comment) => {
-        match publish_comment_event_fn("http://localhost:4001/events", &comment).await {
-            Ok(_) => (),
-            Err(err) => log::error!("Error publishing COMMENT event: {}", err),
-        }
-    }
-}
     HttpResponse::Ok().body(format!("Event received: {:?}", event_list))
 }
 
