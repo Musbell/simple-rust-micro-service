@@ -1,10 +1,11 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use log::{error, info, log};
 use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
-use types::{Comment, CommentStatus, Event};
+use types::{Comment, CommentStatus, Event, EventType};
 use uuid::Uuid;
-use log::{info, error};
+use rayon::prelude::*;
 
 struct CommentData {
     comments: Mutex<Vec<Comment>>,
@@ -14,7 +15,11 @@ fn id_generator() -> Uuid {
     Uuid::new_v4()
 }
 
-async fn publish_event_fn(url: &str, comment: &Comment, event_type: &str) -> Result<(), String> {
+async fn publish_event_fn(
+    url: &str,
+    comment: &Comment,
+    event_type: EventType,
+) -> Result<(), String> {
     let comment_json = json!({
         "event_type": event_type,
        "data": {
@@ -39,7 +44,7 @@ async fn get_comments(path: web::Path<(Uuid,)>, data: web::Data<CommentData>) ->
     let post_id = path.0;
     let comments = &data.comments.lock().unwrap();
     let comments_for_post = comments
-        .iter()
+        .par_iter()
         .filter(|c| c.post_id == Some(post_id))
         .collect::<Vec<&Comment>>();
     HttpResponse::Ok().json(comments_for_post)
@@ -62,7 +67,7 @@ async fn create_comment(
     if let Err(err) = publish_event_fn(
         "http://localhost:4005/events",
         &new_comment,
-        "CommentCreated",
+        EventType::CommentCreated,
     )
     .await
     {
@@ -74,47 +79,18 @@ async fn create_comment(
 
 #[post("/events")]
 async fn events(req_body: web::Json<Event>, data: web::Data<CommentData>) -> impl Responder {
-    info!("Received event: {:?}", req_body.event_type);
-
     let (comment_data, event_type) = (req_body.data.clone(), req_body.event_type.clone());
 
-    if event_type == "CommentModerated" {
-        if let types::Data::CommentData(comment) = comment_data {
-            // let id = comment.id;
-            let status = comment.status;
-            let post_id = comment.post_id;
-
-            let mut comments = data.comments.lock().expect("Failed to lock comments");
-
-            let comment_position = comments.iter().position(|c| c.post_id == post_id);
-            if let Some(position) = comment_position {
-                comments[position].status = status.clone();
-                if let Err(err) = publish_event_fn(
-                    "http://localhost:4005/events",
-                    &comments[position],
-                    "CommentUpdated",
-                )
-                .await
-                {
-                    log::error!("Failed to publish COMMENT event: {}", err);
-                    return HttpResponse::InternalServerError().finish();
-                }
-            } else {
-                return HttpResponse::BadRequest().body("Comment not found");
-            }
-        } else {
-            return HttpResponse::BadRequest().body("Invalid data type");
-        }
-    }
+    println!("{:?}", comment_data);
+    println!("{:?}", event_type);
 
     HttpResponse::Ok().body("Received COMMENT Event")
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-      env_logger::init();
+    env_logger::init();
     std::env::set_var("RUST_LOG", "actix_web=debug");
-  
 
     let comments = web::Data::new(CommentData {
         comments: Mutex::new(vec![]),

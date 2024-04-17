@@ -1,11 +1,11 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 // use serde::{Deserialize, Serialize};
+use log::{error, info};
 use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
-use types::{Event, Post};
+use types::{Event, EventType, Post};
 use uuid::Uuid;
-use log::{info, error};
 
 struct PostData {
     posts: Mutex<Vec<Post>>,
@@ -15,9 +15,9 @@ fn id_generator() -> Uuid {
     Uuid::new_v4()
 }
 
-async fn publish_event_fn(url: &str, post: &Post) -> Result<(), String> {
+async fn publish_event_fn(url: &str, post: &Post) -> Result<(), String>{
     let post_json = json!({
-        "event_type": "PostCreated",
+        "event_type": EventType::PostCreated,
          "data": {
            "PostData": {
                  "id": post.id,
@@ -37,10 +37,16 @@ async fn all_posts(data: web::Data<PostData>) -> impl Responder {
     HttpResponse::Ok().json(&*posts)
 }
 
-async fn create_post(data: web::Data<PostData>, post: web::Json<Post>) -> impl Responder {
+async fn create_post(data: web::Data<PostData>, post: web::Json<serde_json::Value>) -> impl Responder {
     let id = id_generator();
     let mut posts = data.posts.lock().expect("Mutex poisoned");
-    let mut new_post = post.into_inner();
+    let mut new_post = match serde_json::from_value::<Post>(post.into_inner()) {
+        Ok(new_post) => new_post,
+        Err(e) => {
+            error!("Error parsing post JSON: {:?}", e);
+            return HttpResponse::BadRequest().json("Malformed JSON data");
+        }
+    };
     new_post.id = Some(id);
     posts.push(new_post.clone());
     if let Err(err) = publish_event_fn("http://localhost:4005/events", &new_post).await {
@@ -50,11 +56,17 @@ async fn create_post(data: web::Data<PostData>, post: web::Json<Post>) -> impl R
     HttpResponse::Ok().body(format!("Post created: {:?}", new_post))
 }
 
-async fn events(req_body: web::Json<Event>) -> impl Responder {
-    info!("Received Event: {:?}", req_body.event_type);
+async fn events(req_body: web::Json<serde_json::Value>) -> impl Responder {
+    let event : Event = match serde_json::from_value(req_body.into_inner()){
+        Ok(body) => body,
+        Err(e) => {
+            error!("Failed to parse Event JSON: {:?}", e);
+            return HttpResponse::BadRequest().json("Malformed JSON data");
+        }
+    };
+    info!("Received Event: {:?}", event.event_type);
     HttpResponse::Ok().body("Received POST Event")
 }
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=debug");

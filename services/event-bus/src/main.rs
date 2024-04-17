@@ -2,9 +2,11 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use request::on_response;
 use serde_json::json;
 use std::sync::Mutex;
-use types::{Comment, Data, Event, Post};
+use types::{Comment, Data, Event, Post, ModerateComment, EventType};
 use log::{info, error};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug,)]
 struct EventData {
     events: Mutex<Vec<Event>>,
 }
@@ -23,42 +25,6 @@ async fn events(data: web::Data<EventData>) -> impl Responder {
     HttpResponse::Ok().json((*events).clone())
 }
 
-async fn publish_post_event_fn(url: &str, post: &Post) -> Result<(), String> {
-    let post_json = json!({
-        "event_type": "PostCreated",
-        "data": {
-           "PostData": {
-                 "id": post.id,
-                "title": post.title,
-            }
-        },
-    });
-
-    let client = reqwest::Client::new();
-
-    let res = client.post(url).json(&post_json).send().await;
-
-    on_response(res).await
-}
-async fn publish_comment_event_fn(url: &str, comment: &Comment) -> Result<(), String> {
-    let comment_json = json!({
-        "event_type": "CommentCreated",
-        "data": {
-            "CommentData": {
-               "id": comment.id,
-                "post_id": comment.post_id,
-                "status": comment.status,
-                "content": comment.content
-            }
-        }
-    });
-
-    let client = reqwest::Client::new();
-
-    let res = client.post(url).json(&comment_json).send().await;
-
-    on_response(res).await
-}
 
 #[post("/events")]
 async fn handle_event(
@@ -69,33 +35,27 @@ async fn handle_event(
     let event: Event = serde_json::from_value(event.into_inner()).expect("Error parsing event");
     event_list.push(event.clone());
 
-    match event.data {
-        Data::PostData(post) => {
-            match publish_post_event_fn("http://localhost:4000/events", &post).await {
-                Ok(_) => log::info!("Published POST event"),
-                Err(err) => log::error!("Error publishing POST event: {}", err),
-            }
-        }
-        Data::CommentData(comment) => {
-            match publish_comment_event_fn("http://localhost:4001/events", &comment).await {
-                Ok(_) => log::info!("Published COMMENT event"),
-                Err(err) => log::error!("Error publishing COMMENT event: {}", err),
-            }
-            match publish_comment_event_fn("http://localhost:4002/events", &comment).await {
-                Ok(_) => log::info!("Published MODERATION event"),
-                Err(err) => log::error!("Error publishing MODERATION event: {}", err),
-            }
-        }
-        Data::ModerationData(comment) => {
-            match publish_comment_event_fn("http://localhost:4002/events", &comment).await {
-                Ok(_) => log::info!("Published MODERATION event"),
-                Err(err) => log::error!("Error publishing MODERATION event: {}", err),
+    let client = reqwest::Client::new();
+    let urls = ["http://localhost:4000/events", "http://localhost:4001/events",  "http://localhost:4003/events"];
+    let event_vector = event_list.clone();
+
+
+
+
+    for &url in &urls {
+        let res = client.post(url).json(&event_vector).send().await;
+        match res {
+            Ok(response) => {
+                on_response(Ok(response)).await;
+            },
+            Err(err) => {
+                error!("Error: {}", err);
             }
         }
     }
-    HttpResponse::Ok().body(format!("Event received: {:?}", event_list))
-}
 
+    HttpResponse::Ok().finish()
+}
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=debug");
@@ -109,7 +69,7 @@ async fn main() -> std::io::Result<()> {
             .service(events)
             .service(handle_event)
     })
-    .bind(("127.0.0.1", 4005))?
-    .run()
-    .await
+        .bind(("127.0.0.1", 4005))?
+        .run()
+        .await
 }
