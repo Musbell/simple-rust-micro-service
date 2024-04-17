@@ -36,7 +36,11 @@ async fn handle_event(
     event_list.push(event.clone());
 
     let client = reqwest::Client::new();
-    let urls = ["http://localhost:4000/events", "http://localhost:4001/events",  "http://localhost:4003/events"];
+    let urls = [
+        "http://localhost:4000/events",
+        "http://localhost:4001/events",
+        "http://localhost:4002/events",
+        "http://localhost:4003/events"];
     let event_vector = event_list.clone();
 
 
